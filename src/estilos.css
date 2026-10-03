@@ -1,0 +1,414 @@
+/* =====================================================================
+   Sistema Inteligente de Parqueo — hoja de estilos
+   La paleta viene de la senalizacion vial real: concreto, asfalto,
+   pintura de bahias y los colores de semaforo.
+   ===================================================================== */
+
+:root {
+  --concreto:  #E7E8E4;
+  --concreto-2:#F4F5F2;
+  --asfalto:   #22262B;
+  --asfalto-2: #2C3138;
+  --pintura:   #EDE9DC;
+  --tinta:     #14171A;
+  --tinta-2:   #5A6068;
+  --borde:     #CFD1CC;
+
+  --vial-amarillo: #E5A812;
+  --vial-verde:    #2F9E5F;
+  --vial-rojo:     #C4392E;
+  --vial-azul:     #2F6FB5;
+
+  --sans: 'Barlow', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --cond: 'Barlow Condensed', 'Barlow', system-ui, sans-serif;
+  --mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Consolas, monospace;
+}
+
+* { box-sizing: border-box; }
+
+html, body, #root { height: 100%; }
+
+body {
+  margin: 0;
+  background: var(--concreto);
+  color: var(--tinta);
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2 { margin: 0; font-weight: 600; letter-spacing: -0.01em; }
+
+button { font-family: inherit; font-size: inherit; cursor: pointer; }
+
+button:focus-visible,
+[role='button']:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--vial-azul);
+  outline-offset: 2px;
+}
+
+.cargando {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  color: var(--tinta-2);
+}
+
+.app { max-width: 1400px; margin: 0 auto; padding: 20px 24px 48px; }
+
+/* ------------------------------ Barra ------------------------------ */
+
+.barra {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--borde);
+}
+
+.marca { display: flex; align-items: center; gap: 14px; }
+
+/* La P de estacionamiento: el simbolo mas reconocible del rubro. */
+.marca-p {
+  display: grid;
+  place-items: center;
+  width: 46px; height: 46px;
+  background: var(--vial-azul);
+  color: #fff;
+  font-family: var(--cond);
+  font-size: 34px;
+  font-weight: 600;
+  line-height: 1;
+  border-radius: 6px;
+}
+
+.barra h1 { font-size: 20px; }
+.barra p  { margin: 0; font-size: 13px; color: var(--tinta-2); }
+
+.barra-derecha { display: flex; align-items: center; gap: 14px; }
+
+.chip {
+  padding: 4px 11px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 500;
+  border: 1px solid transparent;
+}
+.chip-simulador { background: #FBF0D6; color: #7A5806; border-color: #E9D9A8; }
+.chip-serial    { background: #DCF0E4; color: #1B5F38; border-color: #B4DCC5; }
+
+.btn {
+  padding: 9px 20px;
+  border: none;
+  border-radius: 6px;
+  background: var(--asfalto);
+  color: var(--pintura);
+  font-weight: 500;
+}
+.btn:disabled { opacity: 0.5; cursor: progress; }
+
+.btn-texto {
+  padding: 7px 12px;
+  border: 1px solid var(--borde);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--tinta-2);
+}
+.btn-texto:hover { border-color: var(--tinta-2); color: var(--tinta); }
+
+/* --------------------------- Franja alarma ------------------------- */
+
+.franja-alarma {
+  margin-top: 16px;
+  padding: 12px 16px;
+  border-radius: 6px;
+  background: var(--vial-rojo);
+  color: #fff;
+  font-size: 14.5px;
+}
+
+/* ---------------------- Letrero de disponibilidad ------------------ */
+
+.letrero {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  margin: 18px 0;
+  background: var(--asfalto);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.letrero-item {
+  flex: 1 1 150px;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 14px 18px;
+  background: var(--asfalto);
+}
+
+.letrero-num {
+  font-family: var(--cond);
+  font-size: 40px;
+  font-weight: 600;
+  line-height: 0.9;
+  color: var(--vial-verde);
+}
+.letrero-item.lleno .letrero-num { color: var(--vial-rojo); }
+
+.letrero-txt {
+  display: flex;
+  flex-direction: column;
+  font-size: 14px;
+  color: var(--pintura);
+}
+.letrero-txt em { font-style: normal; font-size: 12px; color: #9AA1A9; }
+
+/* ------------------------------ Cuerpo ----------------------------- */
+
+.cuerpo {
+  display: grid;
+  grid-template-columns: minmax(0, 1.55fr) minmax(340px, 1fr);
+  gap: 22px;
+  align-items: start;
+}
+
+@media (max-width: 1080px) {
+  .cuerpo { grid-template-columns: 1fr; }
+}
+
+/* ------------------------------- Lote ------------------------------ */
+
+.lote {
+  padding: 22px 20px;
+  background: var(--asfalto);
+  border-radius: 10px;
+}
+
+.fila { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
+
+@media (max-width: 700px) {
+  .fila { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* El pasillo: doble linea amarilla discontinua, como en un parqueo real. */
+.pasillo {
+  position: relative;
+  height: 54px;
+  display: grid;
+  place-items: center;
+}
+.pasillo::before {
+  content: '';
+  position: absolute;
+  left: 0; right: 0; top: 50%;
+  height: 0;
+  border-top: 2px dashed rgba(229, 168, 18, 0.55);
+}
+.pasillo-txt {
+  position: relative;
+  padding: 2px 12px;
+  background: var(--asfalto);
+  color: #7E858D;
+  font-size: 11.5px;
+  letter-spacing: 0.04em;
+}
+
+/* --------------------------- Bahia ------------------------------- */
+
+.bahia {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 128px;
+  padding: 10px 11px;
+  background: var(--asfalto-2);
+  /* Lineas de pintura a los lados, como las bahias reales. */
+  border-left: 3px solid rgba(237, 233, 220, 0.55);
+  border-right: 3px solid rgba(237, 233, 220, 0.55);
+  border-radius: 0;
+  color: var(--pintura);
+  transition: background 140ms ease;
+}
+
+.fila-arriba  .bahia { border-top: 3px solid rgba(237, 233, 220, 0.55); }
+.fila-abajo   .bahia { border-bottom: 3px solid rgba(237, 233, 220, 0.55); }
+
+.bahia:hover { background: #343A42; }
+.bahia.sel   { box-shadow: inset 0 0 0 2px var(--vial-azul); }
+
+.bahia-top { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; }
+
+.bahia-cod {
+  font-family: var(--cond);
+  font-size: 26px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.02em;
+}
+
+.bahia-tipo { font-size: 11px; color: #9AA1A9; text-align: right; }
+
+.bahia-centro { padding: 8px 0; }
+
+.placa {
+  display: inline-block;
+  padding: 3px 9px;
+  background: var(--pintura);
+  color: var(--tinta);
+  border-radius: 3px;
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.bahia-estado { font-size: 13px; color: #9AA1A9; }
+
+.bahia-pie { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+
+.sensor { font-size: 10.5px; color: #767D85; }
+.sensor.on { color: var(--vial-amarillo); }
+
+.mover {
+  padding: 3px 9px;
+  border: 1px solid #4A5158;
+  border-radius: 4px;
+  background: transparent;
+  color: #B7BDC4;
+  font-size: 11px;
+}
+.mover:hover { border-color: var(--pintura); color: var(--pintura); }
+
+/* Estado = una banda de color en el borde inferior interno de la bahia. */
+.bahia::after {
+  content: '';
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 4px;
+  background: var(--vial-verde);
+}
+.est-ASIGNADO::after      { background: var(--vial-amarillo); }
+.est-OCUPADO::after       { background: var(--vial-rojo); }
+.est-AUTORIZADO::after    { background: var(--vial-azul); }
+.est-ALARMA::after        { background: var(--vial-rojo); }
+.est-FUERA_SERVICIO::after{ background: #5A6068; }
+
+.est-OCUPADO    { background: #3A2B29; }
+.est-ASIGNADO   { background: #3A3527; }
+.est-AUTORIZADO { background: #26313D; }
+
+/* El unico movimiento de toda la interfaz: la bahia en alarma. */
+.est-ALARMA {
+  background: #4A2320;
+  animation: pulso 900ms ease-in-out infinite;
+}
+@keyframes pulso {
+  0%, 100% { background: #4A2320; }
+  50%      { background: #6E2E28; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .est-ALARMA { animation: none; box-shadow: inset 0 0 0 2px var(--vial-rojo); }
+}
+
+/* ------------------------------ Panel ------------------------------ */
+
+.panel { display: flex; flex-direction: column; gap: 16px; }
+
+.consola, .salida, .bitacora {
+  background: var(--concreto-2);
+  border: 1px solid var(--borde);
+  border-radius: 10px;
+  padding: 16px;
+}
+
+.consola-cabeza {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.consola h2, .bitacora h2 { font-size: 15px; }
+.atajo { font-size: 11.5px; color: var(--tinta-2); font-family: var(--mono); }
+
+.consola textarea {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--borde);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--tinta);
+  font-family: var(--mono);
+  font-size: 13.5px;
+  line-height: 1.65;
+  resize: vertical;
+}
+
+.consola-pie { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+
+/* ----------------------------- Salida ------------------------------ */
+
+.tabla-errores { width: 100%; border-collapse: collapse; font-size: 13px; }
+.tabla-errores caption {
+  text-align: left;
+  padding-bottom: 8px;
+  font-weight: 500;
+  color: var(--vial-rojo);
+}
+.tabla-errores th {
+  text-align: left;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--borde);
+  font-weight: 500;
+  color: var(--tinta-2);
+  font-size: 12px;
+}
+.tabla-errores td { padding: 7px 8px; border-bottom: 1px solid #E4E5E1; vertical-align: top; }
+.tabla-errores td:nth-child(2),
+.tabla-errores td:nth-child(3) { font-family: var(--mono); color: var(--tinta-2); }
+
+.etq {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 3px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+.ERROR_LEXICO     { background: #F7DED9; color: #8A2C22; }
+.ERROR_SINTACTICO { background: #F8E7CC; color: #7A5806; }
+.ERROR_SEMANTICO  { background: #DCE6F5; color: #234A78; }
+.ERROR_HARDWARE   { background: #E2E3E0; color: #45494E; }
+
+.linea-ok { margin: 6px 0 0; font-size: 13.5px; }
+.linea-ok code {
+  font-family: var(--mono);
+  font-size: 12px;
+  padding: 1px 6px;
+  margin-right: 6px;
+  background: #DCF0E4;
+  color: #1B5F38;
+  border-radius: 3px;
+}
+
+.vacio { margin: 0; font-size: 13px; color: var(--tinta-2); }
+
+/* ---------------------------- Bitacora ----------------------------- */
+
+.bitacora ol { list-style: none; margin: 10px 0 0; padding: 0; }
+
+.bitacora li {
+  display: flex;
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px solid #E4E5E1;
+  font-size: 13px;
+}
+.bitacora li:last-child { border-bottom: none; }
+.bitacora time { flex: 0 0 62px; font-family: var(--mono); font-size: 11.5px; color: var(--tinta-2); }
+.ev-alarma span { color: var(--vial-rojo); font-weight: 500; }
+.ev-error  span { color: #7A5806; }
