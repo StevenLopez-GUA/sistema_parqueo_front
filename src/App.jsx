@@ -1,294 +1,219 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import Capturas from './Capturas.jsx';
+import Icon from './components/Icon.jsx';
+import { Sidebar, Topbar } from './components/Layout.jsx';
+import { Confirmar, useToast } from './components/ui.jsx';
+import { useParkingState } from './hooks/useParkingState.js';
+import { useSirena } from './hooks/useSirena.js';
+import { post } from './lib.js';
+import Dashboard from './pages/Dashboard.jsx';
+import Panel from './pages/Panel.jsx';
+import Actividad from './pages/Actividad.jsx';
+import Guia from './pages/Guia.jsx';
 
-const API = import.meta.env.VITE_API ?? 'http://localhost:3001';
-const WS = API.replace(/^http/, 'ws');
+const SECCIONES = [
+  { id: 'dashboard', titulo: 'Dashboard', icono: 'dashboard' },
+  { id: 'panel', titulo: 'Panel de control', icono: 'map' },
+  { id: 'capturas', titulo: 'Historial de capturas', icono: 'images' },
+  { id: 'actividad', titulo: 'Actividad y eventos', icono: 'activity' },
+  { id: 'guia', titulo: 'Guía de uso', icono: 'book' },
+];
 
-const ETIQUETA_ESTADO = {
-  LIBRE: 'Libre',
-  ASIGNADO: 'Asignado',
-  OCUPADO: 'Ocupado',
-  AUTORIZADO: 'Autorizado',
-  ALARMA: 'Alarma',
-  FUERA_SERVICIO: 'Fuera de servicio',
+// Enlaces viejos (#mapa, #consola, #camara) llevan al panel unificado.
+const ALIAS = { mapa: 'panel', consola: 'panel', camara: 'panel' };
+
+const seccionDeHash = () => {
+  const h = ALIAS[window.location.hash.slice(1)] ?? window.location.hash.slice(1);
+  return SECCIONES.some((s) => s.id === h) ? h : 'dashboard';
 };
 
-const ETIQUETA_TIPO = {
-  compacto: 'Compactos',
-  grande: 'Grandes',
-  moto: 'Motos',
-  carga: 'Carga y descarga',
-  reservado: 'Reservados',
-};
-
-const EJEMPLO = `REGISTRAR(compacto,P123ABC);
-ASIGNAR(P123ABC);
-CONSULTAR();`;
+function temaInicial() {
+  return document.documentElement.dataset.theme === 'light' ? 'claro' : 'oscuro';
+}
 
 export default function App() {
-  const [datos, setDatos] = useState(null);
-  const [codigo, setCodigo] = useState(EJEMPLO);
-  const [resultado, setResultado] = useState(null);
-  const [ejecutando, setEjecutando] = useState(false);
-  const areaRef = useRef(null);
+  const { datos, conectado } = useParkingState();
+  const toast = useToast();
 
-  // Estado en vivo por WebSocket, con respaldo por HTTP en el primer render.
+  const [seccion, setSeccion] = useState(seccionDeHash);
+  const [menu, setMenu] = useState(false);
+  const [confirmarReinicio, setConfirmarReinicio] = useState(false);
+  const [capturasVersion, setCapturasVersion] = useState(0);
+  const [tema, setTema] = useState(temaInicial);
+
+  // Navegación por hash: sobrevive a recargas y respeta atrás/adelante.
   useEffect(() => {
-    fetch(`${API}/api/estado`).then((r) => r.json()).then(setDatos).catch(() => {});
-
-    let socket;
-    let reintento;
-    const conectar = () => {
-      socket = new WebSocket(WS);
-      socket.onmessage = (e) => setDatos(JSON.parse(e.data));
-      socket.onclose = () => { reintento = setTimeout(conectar, 1500); };
-    };
-    conectar();
-    return () => { clearTimeout(reintento); socket?.close(); };
+    const alCambiar = () => setSeccion(seccionDeHash());
+    window.addEventListener('hashchange', alCambiar);
+    return () => window.removeEventListener('hashchange', alCambiar);
   }, []);
 
-  async function ejecutar() {
-    setEjecutando(true);
+  function ir(id) {
+    if (window.location.hash.slice(1) !== id) window.location.hash = id;
+    setSeccion(id);
+    setMenu(false);
+  }
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = tema === 'claro' ? 'light' : 'dark';
+    try { localStorage.setItem('tema', tema === 'claro' ? 'light' : 'dark'); } catch {}
+  }, [tema]);
+
+  // Notificaciones de conexión: solo en las transiciones, nunca por mensaje.
+  const huboConexion = useRef(false);
+  const caido = useRef(false);
+  useEffect(() => {
+    if (conectado) {
+      if (caido.current) toast({ tipo: 'ok', titulo: 'Conexión restablecida' });
+      caido.current = false;
+      huboConexion.current = true;
+    } else if (huboConexion.current && !caido.current) {
+      caido.current = true;
+      toast({ tipo: 'error', titulo: 'Conexión perdida', texto: 'Reintentando conectar con el servidor…' });
+    }
+  }, [conectado, toast]);
+
+  const espacios = datos?.espacios;
+  const alarmas = useMemo(() => (espacios ?? []).filter((e) => e.estado === 'ALARMA'), [espacios]);
+
+  // Alarma sonora en la computadora; una alarma nueva la vuelve a activar.
+  const [silenciada, setSilenciada] = useState(false);
+  const { bloqueada: sonidoBloqueado } = useSirena(alarmas.length > 0 && !silenciada);
+
+  // Una notificación por alarma nueva, no por cada actualización.
+  const alarmasPrevias = useRef(null);
+  useEffect(() => {
+    if (!espacios) return;
+    if (alarmasPrevias.current) {
+      for (const a of alarmas) {
+        if (!alarmasPrevias.current.has(a.espacio_id)) {
+          toast({ tipo: 'alarma', titulo: `Alarma en ${a.espacio}`, texto: a.placa ?? 'Vehículo no registrado', duracion: 8000 });
+          setSilenciada(false);
+        }
+      }
+    }
+    alarmasPrevias.current = new Set(alarmas.map((a) => a.espacio_id));
+  }, [alarmas, espacios, toast]);
+
+  async function accion(fn, exito) {
     try {
-      const r = await fetch(`${API}/api/ejecutar`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ codigo }),
-      });
-      setResultado(await r.json());
-    } catch {
-      setResultado({ errores: [{ clase: 'ERROR_HARDWARE', mensaje: 'No hay conexion con el servidor', linea: 0, columna: 0 }], salidas: [] });
-    } finally {
-      setEjecutando(false);
+      await fn();
+      if (exito) toast({ tipo: 'ok', titulo: exito });
+    } catch (e) {
+      toast({ tipo: 'error', titulo: 'No se pudo completar la acción', texto: e.message });
     }
   }
 
-  const post = (ruta, cuerpo) =>
-    fetch(`${API}${ruta}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(cuerpo ?? {}),
-    });
-
-  function alTeclear(e) {
-    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); ejecutar(); }
-  }
-
-  const espacios = datos?.espacios ?? [];
-  const arriba = espacios.slice(0, 5);
-  const abajo = espacios.slice(5, 10);
-  const enAlarma = espacios.some((e) => e.estado === 'ALARMA');
-  const errores = resultado?.errores ?? [];
-
-  const alarmas = useMemo(
-    () => espacios.filter((e) => e.estado === 'ALARMA'),
-    [espacios]
-  );
-
-  if (!datos) {
-    return <div className="cargando">Conectando con el sistema de parqueo…</div>;
-  }
-
-  return (
-    <div className={`app ${enAlarma ? 'con-alarma' : ''}`}>
-      <header className="barra">
-        <div className="marca">
-          <span className="marca-p">P</span>
-          <div>
-            <h1>Sistema inteligente de parqueo</h1>
-            <p>Universidad Mariano Gálvez · Sexto semestre</p>
-          </div>
-        </div>
-        <div className="barra-derecha">
-          <span className={`chip chip-${datos.modo}`}>
-            {datos.modo === 'simulador' ? 'Maqueta simulada' : 'Maqueta conectada'}
-          </span>
-          <button className="btn-texto" onClick={() => post('/api/reiniciar')}>
-            Reiniciar parqueo
-          </button>
-        </div>
-      </header>
-
-      {alarmas.length > 0 && (
-        <div className="franja-alarma" role="alert">
-          <strong>Movimiento no autorizado.</strong>{' '}
-          {alarmas.map((a) => `${a.espacio} — ${a.placa ?? 'vehículo no registrado'}`).join(' · ')}
-        </div>
-      )}
-
-      <section className="letrero" aria-label="Disponibilidad por tipo">
-        {datos.disponibilidad.map((d) => (
-          <div key={d.tipo_espacio} className={`letrero-item ${d.libres === 0 ? 'lleno' : ''}`}>
-            <span className="letrero-num">{d.libres}</span>
-            <span className="letrero-txt">
-              {ETIQUETA_TIPO[d.tipo_espacio] ?? d.tipo_espacio}
-              <em>de {d.total}</em>
-            </span>
-          </div>
-        ))}
-      </section>
-
-      <main className="cuerpo">
-        <section className="lote" aria-label="Mapa del parqueo">
-          <FilaBahias
-            espacios={arriba}
-            orientacion="arriba"
-            seleccionado={datos.seleccionado}
-            simulador={datos.modo === 'simulador'}
-            post={post}
-          />
-          <div className="pasillo">
-            <span className="pasillo-txt">Pasillo de circulación</span>
-          </div>
-          <FilaBahias
-            espacios={abajo}
-            orientacion="abajo"
-            seleccionado={datos.seleccionado}
-            simulador={datos.modo === 'simulador'}
-            post={post}
-          />
-        </section>
-
-        <aside className="panel">
-          <div className="consola">
-            <div className="consola-cabeza">
-              <h2>Consola de comandos</h2>
-              <span className="atajo">Ctrl + Enter</span>
-            </div>
-            <textarea
-              ref={areaRef}
-              value={codigo}
-              onChange={(e) => setCodigo(e.target.value)}
-              onKeyDown={alTeclear}
-              spellCheck={false}
-              rows={7}
-              aria-label="Código del lenguaje de parqueo"
-            />
-            <div className="consola-pie">
-              <button className="btn" onClick={ejecutar} disabled={ejecutando}>
-                {ejecutando ? 'Ejecutando…' : 'Ejecutar'}
-              </button>
-              {datos.modo === 'simulador' && (
-                <button className="btn-texto" onClick={() => post('/api/simulador/boton')}>
-                  Botón de autorización
-                </button>
-              )}
-            </div>
-          </div>
-
-          {resultado && (
-            <div className="salida">
-              {errores.length > 0 && (
-                <table className="tabla-errores">
-                  <caption>
-                    {errores.length} {errores.length === 1 ? 'error' : 'errores'}
-                  </caption>
-                  <thead>
-                    <tr><th>Tipo</th><th>Ln</th><th>Col</th><th>Descripción</th></tr>
-                  </thead>
-                  <tbody>
-                    {errores.map((e, i) => (
-                      <tr key={i}>
-                        <td><span className={`etq ${e.clase}`}>{e.clase.replace('ERROR_', '').toLowerCase()}</span></td>
-                        <td>{e.linea}</td>
-                        <td>{e.columna}</td>
-                        <td>{e.mensaje}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-
-              {(resultado.salidas ?? []).map((s, i) => (
-                <p key={i} className="linea-ok">
-                  <code>{s.comando}</code> {s.mensaje}
-                </p>
-              ))}
-
-              {errores.length === 0 && (resultado.salidas ?? []).length === 0 && (
-                <p className="vacio">No hay instrucciones que ejecutar.</p>
-              )}
-            </div>
-          )}
-
-          <div className="bitacora">
-            <h2>Bitácora</h2>
-            {datos.eventos.length === 0 ? (
-              <p className="vacio">Los movimientos del parqueo aparecerán aquí.</p>
-            ) : (
-              <ol>
-                {[...datos.eventos].reverse().slice(0, 14).map((ev, i) => (
-                  <li key={i} className={`ev-${ev.nivel}`}>
-                    <time>{ev.momento}</time>
-                    <span>{ev.texto}</span>
-                  </li>
-                ))}
-              </ol>
-            )}
-          </div>
-        </aside>
-      </main>
-    </div>
-  );
-}
-
-function FilaBahias({ espacios, orientacion, seleccionado, simulador, post }) {
-  return (
-    <div className={`fila fila-${orientacion}`}>
-      {espacios.map((e) => (
-        <Bahia
-          key={e.espacio_id}
-          espacio={e}
-          seleccionado={seleccionado === e.espacio_id}
-          simulador={simulador}
-          post={post}
-        />
-      ))}
-    </div>
-  );
-}
-
-function Bahia({ espacio: e, seleccionado, simulador, post }) {
-  const hayCarro = e.sensor_ocupado === 1;
-
-  const seleccionar = () =>
-    post('/api/seleccionar', { espacio_id: seleccionado ? null : e.espacio_id });
-
-  const moverCarro = (ev) => {
-    ev.stopPropagation();
-    post('/api/simulador/sensor', { indice: e.indice_led, presente: !hayCarro });
+  const seleccionar = (id) => accion(() => post('/api/seleccionar', { espacio_id: id }));
+  const mover = (e, presente) => accion(() => post('/api/simulador/sensor', { indice: e.indice_led, presente }));
+  const reiniciar = () => {
+    setConfirmarReinicio(false);
+    accion(() => post('/api/reiniciar'), 'Parqueo reiniciado');
   };
 
+  if (!datos) return <Cargando conectado={conectado} />;
+
+  const actual = SECCIONES.find((s) => s.id === seccion);
+
   return (
-    <div
-      className={`bahia est-${e.estado} ${seleccionado ? 'sel' : ''}`}
-      onClick={seleccionar}
-      role="button"
-      tabIndex={0}
-      onKeyDown={(ev) => ev.key === 'Enter' && seleccionar()}
-      aria-label={`Espacio ${e.espacio}, ${ETIQUETA_ESTADO[e.estado]}`}
-    >
-      <div className="bahia-top">
-        <span className="bahia-cod">{e.espacio}</span>
-        <span className="bahia-tipo">{e.tipo_espacio}</span>
+    <div className={`app ${alarmas.length ? 'con-alarma' : ''}`}>
+      <Sidebar
+        secciones={SECCIONES}
+        actual={seccion}
+        onIr={ir}
+        abierto={menu}
+        onCerrar={() => setMenu(false)}
+        alarmas={alarmas.length}
+      />
+
+      <div className="principal">
+        <Topbar
+          titulo={actual.titulo}
+          conectado={conectado}
+          modo={datos.modo}
+          alarmas={alarmas.length}
+          tema={tema}
+          onMenu={() => setMenu(true)}
+          onAlarmas={() => ir('panel')}
+          onReiniciar={() => setConfirmarReinicio(true)}
+          onTema={() => setTema((t) => (t === 'oscuro' ? 'claro' : 'oscuro'))}
+        />
+
+        {alarmas.length > 0 && (
+          <div className="banda-alarma" role="alert">
+            <span className="banda-icono"><Icon name="alert" size={18} /></span>
+            <div className="banda-txt">
+              <strong>Movimiento no autorizado</strong>
+              <span>
+                {alarmas.map((a) => `${a.espacio} — ${a.placa ?? 'vehículo no registrado'}`).join(' · ')}
+              </span>
+              {sonidoBloqueado && !silenciada && <small>Haz clic en cualquier parte para activar el sonido.</small>}
+            </div>
+            <button
+              className="icon-btn banda-silencio"
+              onClick={() => setSilenciada((s) => !s)}
+              aria-label={silenciada ? 'Activar el sonido de la alarma' : 'Silenciar la alarma'}
+              title={silenciada ? 'Activar sonido' : 'Silenciar'}
+            >
+              <Icon name={silenciada ? 'bell' : 'bellOff'} size={18} />
+            </button>
+            {seccion !== 'panel' && (
+              <button className="btn btn-sm btn-alarma" onClick={() => ir('panel')}>
+                Ver en el mapa
+              </button>
+            )}
+          </div>
+        )}
+
+        <main className="contenido">
+          {/* Todas las secciones quedan montadas: cambiar de sección no
+              pierde el código de la consola, la foto ni los filtros. */}
+          <section className="pagina" hidden={seccion !== 'dashboard'} aria-label="Dashboard">
+            <Dashboard datos={datos} conectado={conectado} onIr={ir} />
+          </section>
+          <section className="pagina" hidden={seccion !== 'panel'} aria-label="Panel de control">
+            <Panel
+              datos={datos}
+              activo={seccion === 'panel'}
+              onSeleccionar={seleccionar}
+              onMover={mover}
+              onCapturaGuardada={() => setCapturasVersion((v) => v + 1)}
+            />
+          </section>
+          <section className="pagina" hidden={seccion !== 'capturas'} aria-label="Historial de capturas">
+            <Capturas refrescar={capturasVersion} />
+          </section>
+          <section className="pagina" hidden={seccion !== 'actividad'} aria-label="Actividad y eventos">
+            <Actividad eventos={datos.eventos} />
+          </section>
+          <section className="pagina" hidden={seccion !== 'guia'} aria-label="Guía de uso">
+            <Guia onIr={ir} />
+          </section>
+        </main>
       </div>
 
-      <div className="bahia-centro">
-        {e.placa ? (
-          <span className="placa">{e.placa}</span>
-        ) : (
-          <span className="bahia-estado">{ETIQUETA_ESTADO[e.estado]}</span>
-        )}
-      </div>
+      <Confirmar
+        abierto={confirmarReinicio}
+        titulo="¿Reiniciar el parqueo?"
+        texto="Se borrarán los vehículos registrados, las ocupaciones, las alarmas y la bitácora, y todos los espacios quedarán libres. Las capturas fotográficas se conservan. Esta acción no se puede deshacer."
+        accion="Reiniciar parqueo"
+        onConfirmar={reiniciar}
+        onCancelar={() => setConfirmarReinicio(false)}
+      />
+    </div>
+  );
+}
 
-      <div className="bahia-pie">
-        <span className={`sensor ${hayCarro ? 'on' : ''}`}>
-          {hayCarro ? 'sensor detecta' : 'sensor libre'}
-        </span>
-        {simulador && (
-          <button className="mover" onClick={moverCarro} title="Simular entrada o salida del vehículo">
-            {hayCarro ? 'Sacar' : 'Meter'}
-          </button>
-        )}
+function Cargando({ conectado }) {
+  return (
+    <div className="cargando" aria-busy="true">
+      <div className="cargando-caja">
+        <span className="logo logo-lg" aria-hidden="true">P</span>
+        <strong>Conectando con el sistema de parqueo…</strong>
+        <p>{conectado ? 'Recibiendo el estado inicial.' : 'Esperando al servidor. Se reintentará automáticamente.'}</p>
+        <div className="cargando-esqueleto" aria-hidden="true">
+          {Array.from({ length: 5 }, (_, i) => <span key={i} className="skeleton" />)}
+        </div>
       </div>
     </div>
   );
