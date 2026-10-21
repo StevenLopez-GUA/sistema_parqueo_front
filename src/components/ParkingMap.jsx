@@ -2,41 +2,38 @@ import Icon from './Icon.jsx';
 import { ESTADOS, TIPOS } from '../lib.js';
 
 /**
- * Mapa 2D del lote: dos filas de 5 bahías y el pasillo al centro.
- * Las bahías tienen ancho fijo; en pantallas angostas el lote hace
+ * Mapa 2D del lote en L, como la maqueta: al entrar quedan enfrente
+ * los 3 primeros espacios (carga y privados) y a mano derecha el resto
+ * (los libres). El pasillo ocupa la esquina interior de la L.
+ * Las bahías tienen tamaño fijo; en pantallas angostas el lote hace
  * scroll horizontal en vez de deformarse.
  */
 export default function ParkingMap({ espacios, reservas = [], seleccionado, simulador, onSeleccionar, onMover }) {
-  const arriba = espacios.slice(0, 5);
-  const abajo = espacios.slice(5, 10);
-
-  const fila = (lista, orient) => (
-    <div className={`lote-fila ${orient}`}>
-      {lista.map((e) => (
-        <ParkingSpot
-          key={e.espacio_id}
-          espacio={e}
-          orient={orient}
-          seleccionado={seleccionado === e.espacio_id}
-          reserva={reservas.find((r) => r.espacio_id === e.espacio_id)?.placa}
-          simulador={simulador}
-          onSeleccionar={onSeleccionar}
-          onMover={onMover}
-        />
-      ))}
-    </div>
+  const bahia = (e, orient) => (
+    <ParkingSpot
+      key={e.espacio_id}
+      espacio={e}
+      orient={orient}
+      seleccionado={seleccionado === e.espacio_id}
+      reserva={reservas.find((r) => r.espacio_id === e.espacio_id)?.placa}
+      simulador={simulador}
+      onSeleccionar={onSeleccionar}
+      onMover={onMover}
+    />
   );
 
   return (
     <div className="lote-scroll" tabIndex={-1}>
       <div className="lote" role="group" aria-label="Mapa del parqueo">
-        {fila(arriba, 'arriba')}
+        <div className="lote-frente">{espacios.slice(0, 3).map((e) => bahia(e, 'arriba'))}</div>
+        <div className="lote-derecha">{espacios.slice(3).map((e) => bahia(e, 'derecha'))}</div>
         <div className="lote-pasillo" aria-hidden="true">
-          <span className="flecha">›</span>
           <span className="pasillo-txt">Pasillo de circulación</span>
-          <span className="flecha">›</span>
+          <span className="lote-entrada">
+            <span className="flecha">↑</span>
+            Entrada
+          </span>
         </div>
-        {abajo.length > 0 && fila(abajo, 'abajo')}
       </div>
     </div>
   );

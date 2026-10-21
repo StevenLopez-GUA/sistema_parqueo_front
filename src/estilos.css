@@ -921,8 +921,15 @@ select.campo { cursor: pointer; }
 }
 
 .lote {
-  --celda-w: 114px;
-  min-width: calc(var(--celda-w) * 5 + 4 * 10px + 32px);
+  --celda-w: 120px;
+  --lado-w: 220px;
+  display: grid;
+  grid-template-columns: 1fr var(--lado-w);
+  grid-template-areas:
+    "frente  esquina"
+    "pasillo derecha";
+  gap: 10px;
+  min-width: calc(var(--celda-w) * 3 + 2 * 10px + 10px + var(--lado-w) + 32px);
   padding: 20px 16px;
   border-radius: var(--radio);
   background:
@@ -931,29 +938,37 @@ select.campo { cursor: pointer; }
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
 }
 
-.lote-fila {
+.lote-frente {
+  grid-area: frente;
   display: grid;
-  grid-template-columns: repeat(5, minmax(var(--celda-w), 1fr));
+  grid-template-columns: repeat(3, minmax(var(--celda-w), 1fr));
+  gap: 10px;
+}
+.lote-derecha {
+  grid-area: derecha;
+  display: grid;
   gap: 10px;
 }
 
-/* Pasillo: línea central discontinua y flechas de sentido */
+/* Pasillo: la esquina interior de la L, con la entrada abajo */
 .lote-pasillo {
+  grid-area: pasillo;
   position: relative;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: space-between;
-  height: 52px;
-  padding: 0 8px;
+  min-height: 200px;
+  padding-top: 24px;
   color: rgba(226, 232, 240, 0.35);
 }
 .lote-pasillo::before {
   content: '';
   position: absolute;
-  left: 0;
-  right: 0;
-  top: 50%;
-  border-top: 2px dashed var(--lote-pasillo);
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  border-left: 2px dashed var(--lote-pasillo);
 }
 .pasillo-txt {
   position: relative;
@@ -964,7 +979,23 @@ select.campo { cursor: pointer; }
   letter-spacing: 0.14em;
   text-transform: uppercase;
 }
-.flecha { position: relative; font-size: 22px; line-height: 1; background: var(--lote); padding: 0 6px; }
+.lote-entrada {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 14px;
+  margin-bottom: -20px;
+  border: 1px solid var(--lote-pasillo);
+  border-radius: 999px 999px 0 0;
+  background: var(--lote);
+  color: color-mix(in srgb, var(--warn) 80%, #fff);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.flecha { font-size: 16px; line-height: 1; }
 
 /* Bahía */
 .spot {
@@ -983,7 +1014,7 @@ select.campo { cursor: pointer; }
 }
 /* La bahía se abre hacia el pasillo: sin línea en ese lado */
 .spot.arriba { border-bottom-color: transparent; border-radius: 4px 4px 0 0; }
-.spot.abajo  { border-top-color: transparent; border-radius: 0 0 4px 4px; flex-direction: column-reverse; }
+.spot.derecha { height: auto; min-height: 150px; border-left-color: transparent; border-radius: 0 4px 4px 0; }
 
 /* Banda de estado en el lado del pasillo */
 .spot::after {
@@ -998,7 +1029,7 @@ select.campo { cursor: pointer; }
   transition: background 300ms var(--ease);
 }
 .spot.arriba::after { bottom: -2px; }
-.spot.abajo::after  { top: -2px; }
+.spot.derecha::after { left: -2px; right: auto; top: 6px; bottom: 6px; width: 4px; height: auto; }
 
 .spot:hover { background: color-mix(in srgb, var(--st) 12%, var(--lote-celda)); }
 .spot:focus-visible { box-shadow: 0 0 0 3px var(--primario-2); }
@@ -1007,7 +1038,7 @@ select.campo { cursor: pointer; }
   box-shadow: 0 0 0 2px var(--primario-2), 0 12px 30px -10px rgba(59, 130, 246, 0.6);
   transform: translateY(-2px);
 }
-.spot.abajo.sel { transform: translateY(2px); }
+.spot.derecha.sel { transform: translateX(2px); }
 
 .spot.st-ALARMA {
   background: color-mix(in srgb, var(--alarma) 18%, var(--lote-celda));
@@ -1062,10 +1093,11 @@ select.campo { cursor: pointer; }
 .spot .placa { font-size: 11px; padding: 2px 6px 1px; position: relative; z-index: 1; }
 
 .veh-wrap { display: block; height: 96px; animation: estacionar 520ms var(--ease); }
-.spot.abajo .veh-wrap { animation-name: estacionar-abajo; }
-.spot.abajo .vehiculo { transform: rotate(180deg); }
+/* A la derecha el carro entra de lado: frente hacia la pared derecha */
+.spot.derecha .veh-wrap { height: 52px; animation-name: estacionar-derecha; }
+.spot.derecha .vehiculo { transform: rotate(90deg); }
 @keyframes estacionar { from { opacity: 0; transform: translateY(40px); } }
-@keyframes estacionar-abajo { from { opacity: 0; transform: translateY(-40px); } }
+@keyframes estacionar-derecha { from { opacity: 0; transform: translateX(-40px); } }
 
 .vehiculo { display: block; width: auto; height: 100%; filter: drop-shadow(0 6px 8px rgba(0, 0, 0, 0.5)); }
 .vehiculo .carroceria { fill: color-mix(in srgb, var(--st) 45%, var(--veh-base)); }
@@ -1104,7 +1136,6 @@ select.campo { cursor: pointer; }
   font-weight: 500;
   transition: all 160ms var(--ease);
 }
-.spot.abajo .spot-mover { margin: 0 0 8px; }
 .spot-mover:hover { background: rgba(255, 255, 255, 0.12); color: #fff; border-color: rgba(226, 232, 240, 0.35); }
 .spot-mover:active { transform: scale(0.96); }
 
